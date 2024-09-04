@@ -30,16 +30,16 @@ mount_snapshots() {
         
         # Create the mount point
         mountpoint="${BASE_MOUNTPOINT}/${snapshot_name}"
-        mkdir -p "$mountpoint"
+        echo $mountpoint
+        # mkdir -p "$mountpoint"
         
         # Mount the snapshot
-        zfs mount -o readonly "$snapshot" "$mountpoint"
-        
-        if [ $? -eq 0 ]; then
-            echo "Snapshot $snapshot mounted on $mountpoint"
-        else
-            echo "Error mounting $snapshot"
-        fi
+        # if mount -t zfs -o ro "$snapshot" "$mountpoint"; then
+        #     echo "Snapshot $snapshot mounted on $mountpoint"
+        # else
+        #     echo "Error mounting $snapshot"
+        #     rmdir "$mountpoint"
+        # fi
     done <<< "$snapshots"
 }
 
