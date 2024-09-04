@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# ARG_OPTIONAL_SINGLE([dataset],[d],[Parent ZFS dataset],[tank/data])
-# ARG_OPTIONAL_SINGLE([mountpoint],[m],[Base mount point],[/mnt/snapshots])
-# ARG_OPTIONAL_SINGLE([snapshot],[s],[Specific snapshot name to mount/unmount],[])
 # ARG_POSITIONAL_SINGLE([command],[Mount or unmount snapshots],[mount])
+# ARG_POSITIONAL_SINGLE([dataset],[Parent ZFS dataset])
+# ARG_POSITIONAL_SINGLE([snapshot],[Specific snapshot name to mount/unmount])
+# ARG_OPTIONAL_SINGLE([mountpoint],[m],[Base mount point],[/mnt/snapshots])
 # ARG_HELP([Mount or unmount ZFS snapshots recursively])
 # ARGBASH_GO
 
@@ -17,23 +17,22 @@ mount_snapshots() {
     local SNAPSHOT_NAME="$3"
 
     # Get the list of snapshots
-    if [ -n "$SNAPSHOT_NAME" ]; then
-        snapshots=$(zfs list -H -t snapshot -o name -r "${PARENT_DATASET}" | grep "@${SNAPSHOT_NAME}$")
-    else
-        snapshots=$(zfs list -H -t snapshot -o name -r "${PARENT_DATASET}")
-    fi
+    snapshots=$(zfs list -H -t snapshot -o name -r "${PARENT_DATASET}" | grep "@${SNAPSHOT_NAME}$")
 
     # Loop through each snapshot and mount it
     while read -r snapshot; do
-        # Extract the snapshot name
+        # Extract the dataset path and snapshot name
+        dataset_path=$(echo "$snapshot" | cut -d'@' -f1)
         snapshot_name=$(echo "$snapshot" | cut -d'@' -f2)
         
-        # Create the mount point
-        mountpoint="${BASE_MOUNTPOINT}/${snapshot_name}"
+        # Create the mount point using the full dataset path
+        relative_path=${dataset_path#$PARENT_DATASET/}
+        mountpoint="${BASE_MOUNTPOINT}/${relative_path}"
         echo $mountpoint
+
         # mkdir -p "$mountpoint"
         
-        # Mount the snapshot
+        # # Mount the snapshot
         # if mount -t zfs -o ro "$snapshot" "$mountpoint"; then
         #     echo "Snapshot $snapshot mounted on $mountpoint"
         # else
@@ -49,11 +48,8 @@ unmount_snapshots() {
     local SNAPSHOT_NAME="$3"
 
     # Get the list of snapshots
-    if [ -n "$SNAPSHOT_NAME" ]; then
-        snapshots=$(zfs list -H -t snapshot -o name -r "${PARENT_DATASET}" | grep "@${SNAPSHOT_NAME}$")
-    else
-        snapshots=$(zfs list -H -t snapshot -o name -r "${PARENT_DATASET}")
-    fi
+    snapshots=$(zfs list -H -t snapshot -o name -r "${PARENT_DATASET}" | grep "@${SNAPSHOT_NAME}$")
+
 
     # Loop through each snapshot and unmount it
     while read -r snapshot; do
