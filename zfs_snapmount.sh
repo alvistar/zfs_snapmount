@@ -226,6 +226,12 @@ cleanup() {
         echo "Destroying snapshot recursively..."
         zfs destroy -r ${_arg_dataset}@${_arg_snapshot_name} || echo "Warning: Failed to destroy snapshot"
     fi
+
+    # Remove the base mountpoint if it was created by the script
+    if [ "$mountpoint_created" = true ]; then
+        echo "Removing base mountpoint $_arg_mountpoint"
+        rmdir "$_arg_mountpoint" || echo "Warning: Failed to remove base mountpoint"
+    fi
 }
 
 trap cleanup EXIT
@@ -242,6 +248,7 @@ if [ "$_arg_keep" = on ] && [ "$_arg_create_snapshot" = off ]; then
 fi
 
 snapshot_created=false
+mountpoint_created=false
 
 if [ "$_arg_create_snapshot" = on ]; then
     echo "Creating recursive snapshot of $_arg_dataset with name $_arg_snapshot_name"
@@ -256,6 +263,13 @@ fi
 if ! zfs list -t snapshot -o name -Hr "$_arg_dataset" | grep -q "@${_arg_snapshot_name}$"; then
     echo "Error: Snapshot ${_arg_dataset}@${_arg_snapshot_name} does not exist."
     exit 1
+fi
+
+# Create the base mountpoint if it doesn't exist
+if [ ! -d "$_arg_mountpoint" ]; then
+    echo "Creating base mountpoint $_arg_mountpoint"
+    mkdir -p "$_arg_mountpoint"
+    mountpoint_created=true
 fi
 
 # Mount the snapshot using the mount_snapshots function
