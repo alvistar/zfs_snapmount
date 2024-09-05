@@ -28,6 +28,13 @@ mount_snapshots() {
         dataset_path=$(echo "$snapshot" | cut -d'@' -f1)
         snapshot_name=$(echo "$snapshot" | cut -d'@' -f2)
         
+        # Check if the dataset has mountpoint set to legacy
+        mountpoint_property=$(zfs get -H -o value mountpoint "$dataset_path")
+        if [ "$mountpoint_property" = "legacy" ]; then
+            echo "Skipping dataset $dataset_path with legacy mountpoint"
+            continue
+        fi
+        
         # Create the mount point using the full dataset path
         if [ "$dataset_path" = "$PARENT_DATASET" ]; then
             # For the root dataset, use BASE_MOUNTPOINT directly
@@ -49,6 +56,8 @@ mount_snapshots() {
 
     # Ask for confirmation to execute all mount commands
     read -p "Do you want to execute these mount commands? (y/n): " confirm
+
+    
     
     if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
         for i in "${!mount_commands[@]}"; do
