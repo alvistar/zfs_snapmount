@@ -211,7 +211,24 @@ mount_snapshots() {
     done <<< "$snapshots"
 }
 
+# Enable exit on error, but with exceptions
 set -e
+
+cleanup() {
+    # Unmount the snapshot recursively if requested
+    if [ "$_arg_unmount" = on ]; then
+        echo "Unmounting snapshot recursively..."
+        umount -R "$_arg_mountpoint" || echo "Warning: Failed to unmount snapshot"
+    fi
+
+    # Destroy the snapshot if it was created and --keep is not set
+    if [ "$snapshot_created" = true ] && [ "$_arg_keep" = off ]; then
+        echo "Destroying snapshot recursively..."
+        zfs destroy -r ${_arg_dataset}@${_arg_snapshot_name} || echo "Warning: Failed to destroy snapshot"
+    fi
+}
+
+trap cleanup EXIT
 
 if ! command -v zfs &> /dev/null; then
     echo "Error: zfs command not found. Please ensure ZFS is installed."
@@ -248,19 +265,14 @@ mount_snapshots "$_arg_dataset" "$_arg_mountpoint" "$_arg_snapshot_name"
 # Execute the command if provided
 if [ -n "$_arg_exec" ]; then
     echo "Executing command: $_arg_exec"
+    set +e  # Temporarily disable exit on error
     eval "$_arg_exec"
+    exec_exit_code=$?
+    set -e  # Re-enable exit on error
+    echo "Command exited with code: $exec_exit_code"
 fi
 
-# Unmount the snapshot recursively if requested
-if [ "$_arg_unmount" = on ]; then
-    echo "Unmounting snapshot recursively..."
-    umount -R "$_arg_mountpoint"
-fi
-
-# Destroy the snapshot if it was created and --keep is not set
-if [ "$snapshot_created" = true ] && [ "$_arg_keep" = off ]; then
-    echo "Destroying snapshot recursively..."
-    zfs destroy -r ${_arg_dataset}@${_arg_snapshot_name}
-fi
+# The cleanup function will handle unmounting and destroying the snapshot if needed
+exit ${exec_exit_code:-0}
 
 # ] <-- needed because of Argbash
