@@ -185,13 +185,13 @@ mount_snapshots() {
             relative_path=${dataset_path#$PARENT_DATASET/}
             mountpoint="${BASE_MOUNTPOINT}/${relative_path}"
         fi
-        echo "Mountpoint: $mountpoint"
+
+		echo "Mounting snapshot $snapshot to $mountpoint"
 
         # Mount the snapshot
-        if mount -t zfs "$snapshot" "$mountpoint"; then
-            echo "Snapshot mounted on $mountpoint"
-        else
+        if ! mount -t zfs "$snapshot" "$mountpoint"; then
             echo "Error mounting to $mountpoint"
+			exit 1
         fi
     done <<< "$snapshots"
 }
@@ -218,7 +218,7 @@ if ! zfs list -t snapshot -o name -Hr "$_arg_dataset" | grep -q "@${_arg_snapsho
 fi
 
 # Mount the snapshot using the mount_snapshots function
-echo "Mounting snapshot..."
+echo "Mounting snapshots..."
 mount_snapshots "$_arg_dataset" "$_arg_mountpoint" "$_arg_snapshot_name"
 
 # Execute the command if provided
