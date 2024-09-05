@@ -5,6 +5,7 @@
 # ARG_OPTIONAL_SINGLE([mountpoint],[m],[Mount point for the snapshot],[/mnt/snapshots])
 # ARG_OPTIONAL_SINGLE([exec],[e],[Command to execute after mounting the snapshot])
 # ARG_OPTIONAL_BOOLEAN([unmount],[u],[Unmount the snapshot recursively])
+# ARG_OPTIONAL_BOOLEAN([create-snapshot],[c],[Create a new snapshot])
 # ARG_HELP([Create a ZFS snapshot of a dataset, optionally mount it, execute a command, or unmount it])
 # ARGBASH_GO()
 # needed because of Argbash --> m4_ignore([
@@ -24,7 +25,7 @@ die()
 
 begins_with_short_option()
 {
-	local first_option all_short_options='meuh'
+	local first_option all_short_options='meuch'
 	first_option="${1:0:1}"
 	test "$all_short_options" = "${all_short_options/$first_option/}" && return 1 || return 0
 }
@@ -35,17 +36,19 @@ _positionals=()
 _arg_mountpoint="/mnt/snapshots"
 _arg_exec=
 _arg_unmount="off"
+_arg_create_snapshot="off"
 
 
 print_help()
 {
 	printf '%s\n' "Create a ZFS snapshot of a dataset, optionally mount it, execute a command, or unmount it"
-	printf 'Usage: %s [-m|--mountpoint <arg>] [-e|--exec <arg>] [-u|--(no-)unmount] [-h|--help] <dataset> <snapshot_name>\n' "$0"
+	printf 'Usage: %s [-m|--mountpoint <arg>] [-e|--exec <arg>] [-u|--(no-)unmount] [-c|--(no-)create-snapshot] [-h|--help] <dataset> <snapshot_name>\n' "$0"
 	printf '\t%s\n' "<dataset>: ZFS dataset to snapshot"
 	printf '\t%s\n' "<snapshot_name>: Name of the snapshot"
 	printf '\t%s\n' "-m, --mountpoint: Mount point for the snapshot (default: '/mnt/snapshots')"
 	printf '\t%s\n' "-e, --exec: Command to execute after mounting the snapshot (no default)"
 	printf '\t%s\n' "-u, --unmount, --no-unmount: Unmount the snapshot recursively (off by default)"
+	printf '\t%s\n' "-c, --create-snapshot, --no-create-snapshot: Create a new snapshot (off by default)"
 	printf '\t%s\n' "-h, --help: Prints help"
 }
 
@@ -89,6 +92,18 @@ parse_commandline()
 				if test -n "$_next" -a "$_next" != "$_key"
 				then
 					{ begins_with_short_option "$_next" && shift && set -- "-u" "-${_next}" "$@"; } || die "The short option '$_key' can't be decomposed to ${_key:0:2} and -${_key:2}, because ${_key:0:2} doesn't accept value and '-${_key:2:1}' doesn't correspond to a short option."
+				fi
+				;;
+			-c|--no-create-snapshot|--create-snapshot)
+				_arg_create_snapshot="on"
+				test "${1:0:5}" = "--no-" && _arg_create_snapshot="off"
+				;;
+			-c*)
+				_arg_create_snapshot="on"
+				_next="${_key##-c}"
+				if test -n "$_next" -a "$_next" != "$_key"
+				then
+					{ begins_with_short_option "$_next" && shift && set -- "-c" "-${_next}" "$@"; } || die "The short option '$_key' can't be decomposed to ${_key:0:2} and -${_key:2}, because ${_key:0:2} doesn't accept value and '-${_key:2:1}' doesn't correspond to a short option."
 				fi
 				;;
 			-h|--help)
@@ -188,11 +203,19 @@ if ! command -v zfs &> /dev/null; then
     exit 1
 fi
 
-echo "Creating recursive snapshot of $_arg_dataset with name $_arg_snapshot_name"
+if [ "$_arg_create_snapshot" = on ]; then
+    echo "Creating recursive snapshot of $_arg_dataset with name $_arg_snapshot_name"
+    zfs snapshot "-r ${_arg_dataset}@${_arg_snapshot_name}"
+    echo "Snapshot created successfully: ${_arg_dataset}@${_arg_snapshot_name}"
+else
+    echo "Using existing snapshot: ${_arg_dataset}@${_arg_snapshot_name}"
+fi
 
-zfs snapshot "-r ${_arg_dataset}@${_arg_snapshot_name}"
-
-echo "Snapshot created successfully: ${_arg_dataset}@${_arg_snapshot_name}"
+# Check if the snapshot exists
+if ! zfs list -t snapshot -o name -Hr "$_arg_dataset" | grep -q "@${_arg_snapshot_name}$"; then
+    echo "Error: Snapshot ${_arg_dataset}@${_arg_snapshot_name} does not exist."
+    exit 1
+fi
 
 # Mount the snapshot using the mount_snapshots function
 echo "Mounting snapshot..."
@@ -200,8 +223,8 @@ mount_snapshots "$_arg_dataset" "$_arg_mountpoint" "$_arg_snapshot_name"
 
 # Execute the command if provided
 if [ -n "$_arg_exec" ]; then
-	echo "Executing command: $_arg_exec"
-	eval "$_arg_exec"
+    echo "Executing command: $_arg_exec"
+    eval "$_arg_exec"
 fi
 
 # Unmount the snapshot recursively if requested
