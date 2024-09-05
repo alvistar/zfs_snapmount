@@ -205,7 +205,7 @@ fi
 
 if [ "$_arg_create_snapshot" = on ]; then
     echo "Creating recursive snapshot of $_arg_dataset with name $_arg_snapshot_name"
-    zfs snapshot "-r ${_arg_dataset}@${_arg_snapshot_name}"
+    zfs snapshot -r ${_arg_dataset}@${_arg_snapshot_name}
     echo "Snapshot created successfully: ${_arg_dataset}@${_arg_snapshot_name}"
 else
     echo "Using existing snapshot: ${_arg_dataset}@${_arg_snapshot_name}"
